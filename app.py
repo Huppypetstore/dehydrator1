@@ -33,22 +33,20 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
         st.error(f"エラーが発生しました: {str(e)}")
         return None
 
-def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
-    """Create and display a bar chart for the specified grouping."""
+def create_boxplot(df: pd.DataFrame, value_col: str) -> None:
+    """Create and display a boxplot for the specified value column, grouped by main and sub categories."""
     if df is not None and not df.empty:
-        summary = df[group_by].value_counts().reset_index()
-        summary.columns = [group_by, '件数']
-        
-        fig = px.bar(
-            summary,
-            x=group_by,
-            y='件数',
-            title=f'{group_by}別の件数',
-            labels={group_by: '', '件数': '件数'}
+        fig = px.box(
+            df,
+            x="業種大分類",
+            y=value_col,
+            color="業種中分類",
+            points="all",
+            title=f"業種大分類×業種中分類ごとの{value_col}の箱ひげ図"
         )
         fig.update_layout(
             xaxis_tickangle=-45,
-            height=500
+            height=600
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -101,13 +99,13 @@ def main():
             st.subheader("分析結果")
             st.write(f"フィルター適用後の総件数: {len(filtered_df)}")
 
-            st.subheader("グラフ表示")
-            chart_type = st.radio(
-                "グラフの種類を選択してください:",
-                ["業種大分類", "業種中分類", "受注の有無"]
-            )
-            
-            create_summary_chart(filtered_df, chart_type)
+            st.subheader("箱ひげ図（業種大分類×業種中分類）")
+            numeric_columns = filtered_df.select_dtypes(include='number').columns.tolist()
+            if numeric_columns:
+                value_col = st.selectbox("箱ひげ図に使う数値項目を選択してください", numeric_columns)
+                create_boxplot(filtered_df, value_col)
+            else:
+                st.warning("数値項目が見つかりません。")
 
             st.subheader("フィルター後のデータ")
             st.dataframe(filtered_df)
