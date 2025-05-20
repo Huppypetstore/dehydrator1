@@ -75,6 +75,10 @@ def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
             summary.columns = [group_by, '件数']
             color_col = None # No color grouping for other chart types
         
+        # Calculate total counts for sorting x-axis categories
+        total_counts = summary.groupby(group_by)['件数'].sum().reset_index()
+        sorted_categories = total_counts.sort_values('件数', ascending=False)[group_by].tolist()
+
         fig = px.bar(
             summary,
             x=group_by,
@@ -86,6 +90,8 @@ def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
             text_auto=True # Automatically position text labels
         ,
             color_discrete_sequence=px.colors.qualitative.Pastel # Use a pastel color sequence
+        ,
+            category_orders={group_by: sorted_categories} # Apply sorting to x-axis categories
         )
         fig.update_layout(
             xaxis_tickangle=-45,
@@ -259,5 +265,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
