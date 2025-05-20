@@ -58,15 +58,24 @@ def create_boxplot(df: pd.DataFrame, value_col: str, category_col: str, show_out
 def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
     """Create and display a bar chart for the specified grouping (count)."""
     if df is not None and not df.empty:
-        summary = df[group_by].value_counts().reset_index()
-        summary.columns = [group_by, '件数']
+        # Group by the primary category and then by '脱水機種別' for color splitting
+        if group_by in ["業種大分類", "業種中分類"]:
+            summary = df.groupby([group_by, '脱水機種別']).size().reset_index(name='件数')
+            color_col = '脱水機種別'
+        else:
+            summary = df[group_by].value_counts().reset_index()
+            summary.columns = [group_by, '件数']
+            color_col = None # No color grouping for other chart types
         
         fig = px.bar(
             summary,
             x=group_by,
             y='件数',
             title=f'{group_by}別の件数',
-            labels={group_by: '', '件数': '件数'}
+            labels={group_by: '', '件数': '件数'},
+            color=color_col, # Apply color grouping
+            text='件数', # Use the '件数' column for text labels
+            text_auto=True # Automatically position text labels
         )
         fig.update_layout(
             xaxis_tickangle=-45,
@@ -131,7 +140,7 @@ def main():
             st.subheader("件数グラフ")
             chart_type = st.radio(
                 "グラフの種類を選択してください:",
-                ["業種大分類", "業種中分類", "脱水機種別", "受注の有無"]
+                ["業種大分類", "業種中分類", "受注の有無"]
             )
             create_summary_chart(filtered_df, chart_type)
 
