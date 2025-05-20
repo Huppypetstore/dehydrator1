@@ -131,7 +131,7 @@ def main():
             st.subheader("件数グラフ")
             chart_type = st.radio(
                 "グラフの種類を選択してください:",
-                ["業種大分類", "業種中分類", "受注の有無"]
+                ["業種大分類", "業種中分類", "脱水機種別", "受注の有無"]
             )
             create_summary_chart(filtered_df, chart_type)
 
@@ -153,12 +153,31 @@ def main():
                     value_col_main = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot1_value")
                     show_outliers_main = st.checkbox("外れ値を表示", value=True, key="outliers_main")
                     if value_col_main:
-                        # Filter out 0 and NaN values for '固形物回収率' if selected
+                        # Filter out 0 and NaN values for specific columns if selected
                         df_for_analysis_main = filtered_df.copy()
-                        if value_col_main == '固形物回収率 %':
+                        columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
+                        if value_col_main in columns_to_filter_zero_and_nan:
                             df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main].notna() & (df_for_analysis_main[value_col_main] != 0)]
 
-                        create_boxplot(filtered_df, value_col_main, "業種大分類", show_outliers=show_outliers_main)
+                        # Sort categories by count for boxplot
+                        category_counts_main = filtered_df["業種大分類"].value_counts().reset_index()
+                        category_counts_main.columns = ["業種大分類", 'count']
+                        sorted_categories_main = category_counts_main.sort_values('count', ascending=False)["業種大分類"].tolist()
+
+                        # Create boxplot with sorted categories
+                        fig_main = px.box(
+                            filtered_df,
+                            x="業種大分類",
+                            y=value_col_main,
+                            points='all' if show_outliers_main else False,
+                            title=f"業種大分類ごとの{value_col_main}の箱ひげ図",
+                            category_orders={"業種大分類": sorted_categories_main}
+                        )
+                        fig_main.update_layout(
+                            xaxis_tickangle=-45,
+                            height=600
+                        )
+                        st.plotly_chart(fig_main, use_container_width=True)
                         
                         st.markdown("---") # 区切り線を追加
                         
@@ -176,12 +195,31 @@ def main():
                     value_col_sub = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot2_value")
                     show_outliers_sub = st.checkbox("外れ値を表示", value=True, key="outliers_sub")
                     if value_col_sub:
-                        # Filter out 0 and NaN values for '固形物回収率' if selected
+                        # Filter out 0 and NaN values for specific columns if selected
                         df_for_analysis_sub = filtered_df.copy()
-                        if value_col_sub == '固形物回収率 %':
+                        columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
+                        if value_col_sub in columns_to_filter_zero_and_nan:
                             df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub].notna() & (df_for_analysis_sub[value_col_sub] != 0)]
 
-                        create_boxplot(filtered_df, value_col_sub, "業種中分類", show_outliers=show_outliers_sub)
+                        # Sort categories by count for boxplot
+                        category_counts_sub = filtered_df["業種中分類"].value_counts().reset_index()
+                        category_counts_sub.columns = ["業種中分類", 'count']
+                        sorted_categories_sub = category_counts_sub.sort_values('count', ascending=False)["業種中分類"].tolist()
+
+                        # Create boxplot with sorted categories
+                        fig_sub = px.box(
+                            filtered_df,
+                            x="業種中分類",
+                            y=value_col_sub,
+                            points='all' if show_outliers_sub else False,
+                            title=f"業種中分類ごとの{value_col_sub}の箱ひげ図",
+                            category_orders={"業種中分類": sorted_categories_sub}
+                        )
+                        fig_sub.update_layout(
+                            xaxis_tickangle=-45,
+                            height=600
+                        )
+                        st.plotly_chart(fig_sub, use_container_width=True)
 
                         st.markdown("---") # 区切り線を追加
                         
@@ -199,9 +237,6 @@ def main():
             # フィルター後のデータ
             st.header("フィルター後のデータ")
             st.dataframe(filtered_df)
-
-if __name__ == "__main__":
-    main() 
 
 if __name__ == "__main__":
     main() 
