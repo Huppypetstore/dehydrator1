@@ -25,7 +25,7 @@ SUB_CATEGORIES = [
 ]
 
 DEWATERING_MACHINE_TYPES = [
-    "多重板スクリュー", "多重円板"
+    "多重円板型脱水機", "多重板型スクリュープレス脱水機", "その他"
 ]
 
 def load_and_process_data(uploaded_file) -> pd.DataFrame:
