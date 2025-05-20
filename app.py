@@ -37,10 +37,11 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
         columns_to_clean = ['固形物回収率 %', '脱水ケーキ含水率 %']
         for col in columns_to_clean:
             if col in df.columns:
-                # Convert all non-numeric values (including blank strings) to NaN
+                # First, convert any non-string to string and replace whitespace/empty strings with NaN
+                df[col] = df[col].astype(str).str.strip()
+                df[col] = df[col].replace('', pd.NA)
+                # Then, convert to numeric, coercing errors to NaN
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                # Also replace any remaining whitespace-only strings with NaN
-                df[col] = df[col].replace(r'^s*$', pd.NA, regex=True)
         
         return df
     except Exception as e:
@@ -192,7 +193,10 @@ def main():
                         df_for_analysis_main = filtered_df.copy()
                         columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
                         if value_col_main in columns_to_filter_zero_and_nan:
-                            df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main].notna() & (df_for_analysis_main[value_col_main] != 0)]
+                            # Explicitly remove rows where the value is 0 or NaN
+                            df_for_analysis_main = df_for_analysis_main[(df_for_analysis_main[value_col_main].notna()) & (df_for_analysis_main[value_col_main] != 0)]
+                            # Also use dropna to be absolutely sure
+                            df_for_analysis_main = df_for_analysis_main.dropna(subset=[value_col_main])
 
                         # Sort categories by count for boxplot
                         category_counts_main = filtered_df["業種大分類"].value_counts().reset_index()
@@ -234,7 +238,10 @@ def main():
                         df_for_analysis_sub = filtered_df.copy()
                         columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
                         if value_col_sub in columns_to_filter_zero_and_nan:
-                            df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub].notna() & (df_for_analysis_sub[value_col_sub] != 0)]
+                            # Explicitly remove rows where the value is 0 or NaN
+                            df_for_analysis_sub = df_for_analysis_sub[(df_for_analysis_sub[value_col_sub].notna()) & (df_for_analysis_sub[value_col_sub] != 0)]
+                            # Also use dropna to be absolutely sure
+                            df_for_analysis_sub = df_for_analysis_sub.dropna(subset=[value_col_sub])
 
                         # Sort categories by count for boxplot
                         category_counts_sub = filtered_df["業種中分類"].value_counts().reset_index()
