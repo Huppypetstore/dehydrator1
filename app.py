@@ -32,6 +32,16 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
     """Load and process the uploaded Excel file."""
     try:
         df = pd.read_excel(uploaded_file)
+        
+        # Data Cleaning: Convert non-numeric, empty strings, or whitespace to NaN for specific columns
+        columns_to_clean = ['固形物回収率 %', '脱水ケーキ含水率 %']
+        for col in columns_to_clean:
+            if col in df.columns:
+                # Convert all non-numeric values (including blank strings) to NaN
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Also replace any remaining whitespace-only strings with NaN
+                df[col] = df[col].replace(r'^s*$', pd.NA, regex=True)
+        
         return df
     except Exception as e:
         st.error(f"エラーが発生しました: {str(e)}")
