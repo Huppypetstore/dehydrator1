@@ -24,6 +24,10 @@ SUB_CATEGORIES = [
     "養鶏", "養豚", "冷凍・チルド・中食"
 ]
 
+DEWATERING_MACHINE_TYPES = [
+    "多重板スクリュー", "多重円板"
+]
+
 def load_and_process_data(uploaded_file) -> pd.DataFrame:
     """Load and process the uploaded Excel file."""
     try:
@@ -33,16 +37,17 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
         st.error(f"エラーが発生しました: {str(e)}")
         return None
 
-def create_boxplot(df: pd.DataFrame, value_col: str) -> None:
-    """Create and display a boxplot for the specified value column, grouped by main and sub categories."""
+def create_boxplot(df: pd.DataFrame, value_col: str, category_col: str, show_outliers: bool = True) -> None:
+    """Create and display a boxplot for the specified value column, grouped by a specified category.
+       Optionally hide outliers."""
     if df is not None and not df.empty:
+        points_mode = 'all' if show_outliers else False
         fig = px.box(
             df,
-            x="業種大分類",
+            x=category_col,
             y=value_col,
-            color="業種中分類",
-            points="all",
-            title=f"業種大分類×業種中分類ごとの{value_col}の箱ひげ図"
+            points=points_mode,
+            title=f"{category_col}ごとの{value_col}の箱ひげ図"
         )
         fig.update_layout(
             xaxis_tickangle=-45,
@@ -50,65 +55,140 @@ def create_boxplot(df: pd.DataFrame, value_col: str) -> None:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-def main():
-    st.set_page_config(page_title="顧客情報分析", layout="wide")
-    st.title("顧客情報分析システム")
+def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
+    """Create and display a bar chart for the specified grouping (count)."""
+    if df is not None and not df.empty:
+        summary = df[group_by].value_counts().reset_index()
+        summary.columns = [group_by, '件数']
+        
+        fig = px.bar(
+            summary,
+            x=group_by,
+            y='件数',
+            title=f'{group_by}別の件数',
+            labels={group_by: '', '件数': '件数'}
+        )
+        fig.update_layout(
+            xaxis_tickangle=-45,
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
+def main():
+    st.set_page_config(page_title="引き合い情報分析 APP", layout="wide")
+    st.title("📊 引き合い情報分析 APP")
+
+    # ファイルアップロード
     uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=['xlsx', 'xls'])
 
     if uploaded_file is not None:
         df = load_and_process_data(uploaded_file)
         
         if df is not None:
-            st.subheader("フィルター設定")
-            
-            col1, col2, col3 = st.columns(3)
-            
+            # フィルター設定
+            st.header("フィルター設定")
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 order_status = st.multiselect(
                     "受注の有無",
                     options=[True, False],
                     default=[True, False]
                 )
-
             with col2:
                 selected_main_categories = st.multiselect(
                     "業種大分類",
                     options=MAIN_CATEGORIES,
                     default=[]
                 )
-
             with col3:
                 selected_sub_categories = st.multiselect(
                     "業種中分類",
                     options=SUB_CATEGORIES,
                     default=[]
                 )
+            with col4:
+                selected_machine_types = st.multiselect(
+                    "脱水機種別",
+                    options=DEWATERING_MACHINE_TYPES,
+                    default=[]
+                )
 
             filtered_df = df.copy()
-            
             if order_status:
                 filtered_df = filtered_df[filtered_df['受注の有無'].isin(order_status)]
-            
             if selected_main_categories:
                 filtered_df = filtered_df[filtered_df['業種大分類'].isin(selected_main_categories)]
-            
             if selected_sub_categories:
                 filtered_df = filtered_df[filtered_df['業種中分類'].isin(selected_sub_categories)]
+            
+            if selected_machine_types and '脱水機種別' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['脱水機種別'].isin(selected_machine_types)]
 
-            st.subheader("分析結果")
+            # 分析結果（件数）
+            st.header("分析結果")
             st.write(f"フィルター適用後の総件数: {len(filtered_df)}")
 
-            st.subheader("箱ひげ図（業種大分類×業種中分類）")
-            numeric_columns = filtered_df.select_dtypes(include='number').columns.tolist()
-            if numeric_columns:
-                value_col = st.selectbox("箱ひげ図に使う数値項目を選択してください", numeric_columns)
-                create_boxplot(filtered_df, value_col)
-            else:
-                st.warning("数値項目が見つかりません。")
+            st.subheader("件数グラフ")
+            chart_type = st.radio(
+                "グラフの種類を選択してください:",
+                ["業種大分類", "業種中分類", "受注の有無"]
+            )
+            create_summary_chart(filtered_df, chart_type)
 
-            st.subheader("フィルター後のデータ")
+            # 数値分析（箱ひげ図と要約統計量）
+            st.header("数値分析（箱ひげ図と要約統計量）")
+            numeric_columns = filtered_df.select_dtypes(include='number').columns.tolist()
+
+            # Initialize selected value variables
+            value_col_main = None
+            value_col_sub = None
+
+            if numeric_columns:
+                # 2つの列を作成して箱ひげ図と要約統計量を並列配置
+                col_box1, col_box2 = st.columns(2)
+
+                with col_box1:
+                    # 箱ひげ図 1：業種大分類 ごと
+                    st.subheader("箱ひげ図 1：業種大分類")
+                    value_col_main = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot1_value")
+                    show_outliers_main = st.checkbox("外れ値を表示", value=True, key="outliers_main")
+                    if value_col_main:
+                        create_boxplot(filtered_df, value_col_main, "業種大分類", show_outliers=show_outliers_main)
+                        
+                        st.markdown("---") # 区切り線を追加
+                        
+                        # 要約統計量：業種大分類ごと
+                        st.subheader(f"📊 {value_col_main} の要約統計量 (業種大分類別)")
+                        try:
+                            grouped_stats_main = filtered_df.groupby("業種大分類")[value_col_main].describe()
+                            st.dataframe(grouped_stats_main)
+                        except Exception as e:
+                            st.error(f"業種大分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
+
+                with col_box2:
+                    # 箱ひげ図 2：業種中分類 ごと
+                    st.subheader("箱ひげ図 2：業種中分類")
+                    value_col_sub = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot2_value")
+                    show_outliers_sub = st.checkbox("外れ値を表示", value=True, key="outliers_sub")
+                    if value_col_sub:
+                        create_boxplot(filtered_df, value_col_sub, "業種中分類", show_outliers=show_outliers_sub)
+
+                        st.markdown("---") # 区切り線を追加
+                        
+                        # 要約統計量：業種中分類ごと
+                        st.subheader(f"📊 {value_col_sub} の要約統計量 (業種中分類別)")
+                        try:
+                            grouped_stats_sub = filtered_df.groupby("業種中分類")[value_col_sub].describe()
+                            st.dataframe(grouped_stats_sub)
+                        except Exception as e:
+                            st.error(f"業種中分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
+
+            else:
+                st.warning("箱ひげ図と要約統計量を作成できる数値項目が見つかりません。")
+
+            # フィルター後のデータ
+            st.header("フィルター後のデータ")
             st.dataframe(filtered_df)
 
 if __name__ == "__main__":
-    main()
+    main() 
