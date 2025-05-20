@@ -153,6 +153,11 @@ def main():
                     value_col_main = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot1_value")
                     show_outliers_main = st.checkbox("外れ値を表示", value=True, key="outliers_main")
                     if value_col_main:
+                        # Filter out 0 and NaN values for '固形物回収率' if selected
+                        df_for_analysis_main = filtered_df.copy()
+                        if value_col_main == '固形物回収率':
+                            df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main].notna() & (df_for_analysis_main[value_col_main] != 0)]
+
                         create_boxplot(filtered_df, value_col_main, "業種大分類", show_outliers=show_outliers_main)
                         
                         st.markdown("---") # 区切り線を追加
@@ -160,7 +165,7 @@ def main():
                         # 要約統計量：業種大分類ごと
                         st.subheader(f"📊 {value_col_main} の要約統計量 (業種大分類別)")
                         try:
-                            grouped_stats_main = filtered_df.groupby("業種大分類")[value_col_main].describe()
+                            grouped_stats_main = df_for_analysis_main.groupby("業種大分類")[value_col_main].describe()
                             st.dataframe(grouped_stats_main)
                         except Exception as e:
                             st.error(f"業種大分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
@@ -171,6 +176,11 @@ def main():
                     value_col_sub = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot2_value")
                     show_outliers_sub = st.checkbox("外れ値を表示", value=True, key="outliers_sub")
                     if value_col_sub:
+                        # Filter out 0 and NaN values for '固形物回収率' if selected
+                        df_for_analysis_sub = filtered_df.copy()
+                        if value_col_sub == '固形物回収率':
+                            df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub].notna() & (df_for_analysis_sub[value_col_sub] != 0)]
+
                         create_boxplot(filtered_df, value_col_sub, "業種中分類", show_outliers=show_outliers_sub)
 
                         st.markdown("---") # 区切り線を追加
@@ -178,7 +188,7 @@ def main():
                         # 要約統計量：業種中分類ごと
                         st.subheader(f"📊 {value_col_sub} の要約統計量 (業種中分類別)")
                         try:
-                            grouped_stats_sub = filtered_df.groupby("業種中分類")[value_col_sub].describe()
+                            grouped_stats_sub = df_for_analysis_sub.groupby("業種中分類")[value_col_sub].describe()
                             st.dataframe(grouped_stats_sub)
                         except Exception as e:
                             st.error(f"業種中分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
