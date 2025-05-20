@@ -191,7 +191,7 @@ def main():
 
                         # Create boxplot with sorted categories
                         fig_main = px.box(
-                            filtered_df,
+                            df_for_analysis_main,
                             x="業種大分類",
                             y=value_col_main,
                             points='all' if show_outliers_main else False,
@@ -233,7 +233,7 @@ def main():
 
                         # Create boxplot with sorted categories
                         fig_sub = px.box(
-                            filtered_df,
+                            df_for_analysis_sub,
                             x="業種中分類",
                             y=value_col_sub,
                             points='all' if show_outliers_sub else False,
@@ -265,6 +265,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
