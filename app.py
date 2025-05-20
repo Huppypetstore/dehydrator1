@@ -155,7 +155,7 @@ def main():
                     if value_col_main:
                         # Filter out 0 and NaN values for '固形物回収率' if selected
                         df_for_analysis_main = filtered_df.copy()
-                        if value_col_main == '固形物回収率':
+                        if value_col_main == '固形物回収率 %':
                             df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main].notna() & (df_for_analysis_main[value_col_main] != 0)]
 
                         create_boxplot(filtered_df, value_col_main, "業種大分類", show_outliers=show_outliers_main)
@@ -178,7 +178,7 @@ def main():
                     if value_col_sub:
                         # Filter out 0 and NaN values for '固形物回収率' if selected
                         df_for_analysis_sub = filtered_df.copy()
-                        if value_col_sub == '固形物回収率':
+                        if value_col_sub == '固形物回収率 %':
                             df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub].notna() & (df_for_analysis_sub[value_col_sub] != 0)]
 
                         create_boxplot(filtered_df, value_col_sub, "業種中分類", show_outliers=show_outliers_sub)
@@ -199,6 +199,9 @@ def main():
             # フィルター後のデータ
             st.header("フィルター後のデータ")
             st.dataframe(filtered_df)
+
+if __name__ == "__main__":
+    main() 
 
 if __name__ == "__main__":
     main() 
