@@ -25,7 +25,7 @@ SUB_CATEGORIES = [
 ]
 
 DEWATERING_MACHINE_TYPES = [
-    "多重円板型脱水機", "多重板型スクリュープレス脱水機", "その他"
+    "多重円板型脱水機", "多重板型スクリュープレス脱水機"
 ]
 
 def load_and_process_data(uploaded_file) -> pd.DataFrame:
@@ -60,7 +60,15 @@ def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
     if df is not None and not df.empty:
         # Group by the primary category and then by '脱水機種別' for color splitting
         if group_by in ["業種大分類", "業種中分類"]:
-            summary = df.groupby([group_by, '脱水機種別']).size().reset_index(name='件数')
+            # Filter for specific 脱水機種別 types
+            allowed_machine_types = ["多重円板型脱水機", "多重板型スクリュープレス脱水機"]
+            # Filter the dataframe before grouping
+            df_to_chart = df[df['脱水機種別'].isin(allowed_machine_types)]
+
+            # Group the filtered dataframe
+            summary = df_to_chart.groupby([group_by, '脱水機種別']).size().reset_index(name='件数')
+            # Sort by primary group and then by count for stacking order
+            summary = summary.sort_values(by=[group_by, '件数'], ascending=[True, False])
             color_col = '脱水機種別'
         else:
             summary = df[group_by].value_counts().reset_index()
@@ -76,6 +84,8 @@ def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
             color=color_col, # Apply color grouping
             text='件数', # Use the '件数' column for text labels
             text_auto=True # Automatically position text labels
+        ,
+            color_discrete_sequence=px.colors.qualitative.Pastel # Use a pastel color sequence
         )
         fig.update_layout(
             xaxis_tickangle=-45,
@@ -186,7 +196,7 @@ def main():
                             xaxis_tickangle=-45,
                             height=600
                         )
-                        st.plotly_chart(fig_main, use_container_width=True)
+                        st.plotly_chart(fig_main, use_container_width=True, config={'scrollZoom': True})
                         
                         st.markdown("---") # 区切り線を追加
                         
@@ -228,7 +238,7 @@ def main():
                             xaxis_tickangle=-45,
                             height=600
                         )
-                        st.plotly_chart(fig_sub, use_container_width=True)
+                        st.plotly_chart(fig_sub, use_container_width=True, config={'scrollZoom': True})
 
                         st.markdown("---") # 区切り線を追加
                         
@@ -248,4 +258,6 @@ def main():
             st.dataframe(filtered_df)
 
 if __name__ == "__main__":
-    main() 
+    main()
+
+
