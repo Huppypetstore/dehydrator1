@@ -5,27 +5,27 @@ from typing import List, Dict
 
 # Define constants for the categories
 MAIN_CATEGORIES = [
-    "エネルギー関連", "クリーニング工場", "下水関連",
-    "化学製品工場", "化学薬品工場", "機械製造業", "産業廃棄物", "商業施設",
-    "食品製造", "製紙", "繊維製品", "畜産", "発電所", "公共下水"
+    "エネルギー関連", "クリーニング工場", "レンタル機として保有", "運送業", "下水関連",
+    "化学製品工場", "化学薬品工場", "機械製造業", "工業", "産業廃棄物", "商業施設",
+    "食品製造", "生コン", "製紙", "繊維製品", "畜産", "発電所"
 ]
 
 SUB_CATEGORIES = [
-    "ガラス", "ごみ処理施設", "シャーペンの芯製造工場", "ショッピングモール",
-    "し尿処理場", "バイオガス", "バイオマス", "ビル", "ホテル",
+    "ガラス", "ごみ処理施設", "ゴム製品", "シャーペンの芯製造工場", "ショッピングモール",
+    "し尿処理場", "その他", "バイオガス", "バイオマス", "ビル", "ホテル",
     "メタン発酵残渣", "レジャー施設", "レンダリング", "移動脱水車", "飲料",
     "下水処理場", "化粧品", "外食", "学校", "給食センター", "漁業集落排水",
     "金属", "健康食品", "自動車・二輪", "樹脂", "浄化槽", "食肉加工",
     "食品加工", "食料品", "水産加工", "精米", "製パン", "製菓",
     "製麵", "製薬", "洗剤", "染料", "繊維・衣料", "繊維製品", "調味料",
     "漬物", "電気・電子部品", "電力", "塗装", "塗装系排水処理", "塗料",
-    "肉牛", "乳牛（酪農）", "農業集落排水",
+    "肉牛", "乳飲料", "乳牛（酪農）", "乳製品", "農業集落排水", "農業⇒公共下水",
     "廃プラ", "プラ再生工場", "発電所", "病院", "薬品", "油田", "溶剤",
-    "養鶏", "養豚", "冷凍・チルド・中食", "OD直脱"
+    "養鶏", "養豚", "冷凍・チルド・中食"
 ]
 
 DEWATERING_MACHINE_TYPES = [
-    "多重円板型脱水機", "多重板型スクリュープレス脱水機", "多重板型スクリュープレス脱水機小規模下水"
+    "多重円板型脱水機", "多重板型スクリュープレス脱水機"
 ]
 
 def load_and_process_data(uploaded_file) -> pd.DataFrame:
@@ -130,27 +130,15 @@ def main():
                     default=[True, False]
                 )
             with col2:
-                # 動的に業種大分類のオプションを生成
-                if '業種大分類' in df.columns:
-                    all_main_categories = sorted(df['業種大分類'].dropna().unique().tolist())
-                else:
-                    all_main_categories = [] # またはエラー表示
-
                 selected_main_categories = st.multiselect(
                     "業種大分類",
-                    options=all_main_categories,
+                    options=sorted(MAIN_CATEGORIES),
                     default=[]
                 )
             with col3:
-                # 動的に業種中分類のオプションを生成
-                if '業種中分類' in df.columns:
-                    all_sub_categories = sorted(df['業種中分類'].dropna().unique().tolist())
-                else:
-                    all_sub_categories = [] # またはエラー表示
-
                 selected_sub_categories = st.multiselect(
                     "業種中分類",
-                    options=all_sub_categories,
+                    options=sorted(SUB_CATEGORIES),
                     default=[]
                 )
             with col4:
