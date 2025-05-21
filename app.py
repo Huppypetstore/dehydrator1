@@ -132,13 +132,13 @@ def main():
             with col2:
                 selected_main_categories = st.multiselect(
                     "業種大分類",
-                    options=MAIN_CATEGORIES,
+                    options=sorted(MAIN_CATEGORIES),
                     default=[]
                 )
             with col3:
                 selected_sub_categories = st.multiselect(
                     "業種中分類",
-                    options=SUB_CATEGORIES,
+                    options=sorted(SUB_CATEGORIES),
                     default=[]
                 )
             with col4:
@@ -186,8 +186,8 @@ def main():
                     # 箱ひげ図 1：業種大分類 ごと
                     st.subheader("箱ひげ図 1：業種大分類")
                     value_col_main = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot1_value")
-                    show_outliers_main = st.checkbox("外れ値を表示", value=True, key="outliers_main")
-                    show_zeros_main = st.checkbox("0を表示", value=True, key="show_zeros_main")
+                    show_outliers_main = st.checkbox("外れ値を表示", value=False, key="outliers_main")
+                    show_zeros_main = st.checkbox("0を表示", value=False, key="show_zeros_main")
                     if value_col_main:
                         # Filter out 0 and NaN values for specific columns if selected
                         df_for_analysis_main = filtered_df.copy()
@@ -229,8 +229,8 @@ def main():
                     # 箱ひげ図 2：業種中分類 ごと
                     st.subheader("箱ひげ図 2：業種中分類")
                     value_col_sub = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot2_value")
-                    show_outliers_sub = st.checkbox("外れ値を表示", value=True, key="outliers_sub")
-                    show_zeros_sub = st.checkbox("0を表示", value=True, key="show_zeros_sub")
+                    show_outliers_sub = st.checkbox("外れ値を表示", value=False, key="outliers_sub")
+                    show_zeros_sub = st.checkbox("0を表示", value=False, key="show_zeros_sub")
                     if value_col_sub:
                         # Filter out 0 and NaN values for specific columns if selected
                         df_for_analysis_sub = filtered_df.copy()
