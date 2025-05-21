@@ -37,10 +37,13 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
         columns_to_clean = ['固形物回収率 %', '脱水ケーキ含水率 %']
         for col in columns_to_clean:
             if col in df.columns:
-                # First, convert any non-string to string and replace whitespace/empty strings with NaN
-                df[col] = df[col].astype(str).str.strip()
-                df[col] = df[col].replace('', pd.NA)
-                # Then, convert to numeric, coercing errors to NaN
+                # More robust cleaning: convert to string, replace common non-numeric representations, then convert to numeric
+                df[col] = df[col].astype(str) # Ensure it's string type
+                df[col] = df[col].str.strip() # Remove leading/trailing whitespace
+                # Replace common non-numeric indicators of missing or zero with empty string
+                df[col] = df[col].replace(['^\s*$', '.', '-', 'N/A'], '', regex=True) # Added '.' and '-' as potential indicators
+                df[col] = df[col].replace('', pd.NA) # Replace empty strings with NaN
+                # Finally, convert to numeric, coercing errors to NaN
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
         return df
@@ -223,7 +226,11 @@ def main():
                         # 要約統計量：業種大分類ごと
                         st.subheader(f"📊 {value_col_main} の要約統計量 (業種大分類別)")
                         try:
-                            grouped_stats_main = df_for_analysis_main.groupby("業種大分類")[value_col_main].describe()
+                            # Filter out 0 values explicitly for describe()
+                            df_describe_main = df_for_analysis_main.copy()
+                            if value_col_main in columns_to_filter_zero_and_nan:
+                                df_describe_main = df_describe_main[df_describe_main[value_col_main] != 0]
+                            grouped_stats_main = df_describe_main.groupby("業種大分類")[value_col_main].describe()
                             st.dataframe(grouped_stats_main)
                         except Exception as e:
                             st.error(f"業種大分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
@@ -268,7 +275,11 @@ def main():
                         # 要約統計量：業種中分類ごと
                         st.subheader(f"📊 {value_col_sub} の要約統計量 (業種中分類別)")
                         try:
-                            grouped_stats_sub = df_for_analysis_sub.groupby("業種中分類")[value_col_sub].describe()
+                            # Filter out 0 values explicitly for describe()
+                            df_describe_sub = df_for_analysis_sub.copy()
+                            if value_col_sub in columns_to_filter_zero_and_nan:
+                                df_describe_sub = df_describe_sub[df_describe_sub[value_col_sub] != 0]
+                            grouped_stats_sub = df_describe_sub.groupby("業種中分類")[value_col_sub].describe()
                             st.dataframe(grouped_stats_sub)
                         except Exception as e:
                             st.error(f"業種中分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
@@ -282,7 +293,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
