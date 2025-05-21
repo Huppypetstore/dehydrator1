@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from typing import List, Dict
 
-# Define constants for the categories
+# Define constants for the categories (These are defaults, actual options will come from data)
 MAIN_CATEGORIES = [
     "エネルギー関連", "クリーニング工場", "レンタル機として保有", "運送業", "下水関連",
     "化学製品工場", "化学薬品工場", "機械製造業", "工業", "産業廃棄物", "商業施設",
@@ -39,10 +39,18 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
         for col in columns_to_clean:
             if col in df.columns:
                 # Convert all non-numeric values (including blank strings that are not just whitespace) to NaN
+                # Use errors='coerce' to turn unparseable values into NaN
                 df[col] = pd.to_numeric(df[col], errors='coerce')
                 # Also replace any remaining whitespace-only strings with NaN (apply after to_numeric)
                 # Ensure the column is string type before applying regex replace, handle potential NaNs before astype
+                # Use fillna('') to temporarily treat NaNs as empty strings for regex check, then replace result back to pd.NA
                 df[col] = df[col].fillna('').astype(str).replace(r'^\s*$', pd.NA, regex=True)
+
+
+        # Global Data Cleaning: Replace numeric 0 with NaN across the entire dataframe AFTER specific cleaning
+        # This is done here to avoid converting explicitly entered '0' strings in specific columns to NaN prematurely if they were meant as text initially
+        # However, given the prior specific cleaning converts to numeric, this global replace is safer here for any other numeric columns.
+        df = df.replace(0, pd.NA)
 
 
         return df
@@ -253,8 +261,11 @@ def main():
 
         with col2:
             if '業種大分類' in df.columns:
-                # Remove NaN from options for display
-                main_categories_options_cleaned = [x for x in main_categories_options if pd.notna(x)]
+                # Filter out NaN, empty strings, and whitespace-only strings
+                main_categories_options_cleaned = [x for x in main_categories_options if pd.notna(x) and str(x).strip() != '']
+                # Sort the cleaned options alphabetically (五十音順)
+                main_categories_options_cleaned.sort() # Sorts in-place
+
                 selected_main_categories = st.multiselect(
                     "業種大分類",
                     options=main_categories_options_cleaned,
@@ -267,8 +278,11 @@ def main():
 
         with col3:
              if '業種中分類' in df.columns:
-                 # Remove NaN from options for display
-                 sub_categories_options_cleaned = [x for x in sub_categories_options if pd.notna(x)]
+                 # Filter out NaN, empty strings, and whitespace-only strings
+                 sub_categories_options_cleaned = [x for x in sub_categories_options if pd.notna(x) and str(x).strip() != '']
+                 # Sort the cleaned options alphabetically (五十音順)
+                 sub_categories_options_cleaned.sort() # Sorts in-place
+
                  selected_sub_categories = st.multiselect(
                     "業種中分類",
                     options=sub_categories_options_cleaned,
@@ -280,8 +294,11 @@ def main():
 
         with col4:
             if '脱水機種別' in df.columns:
-                # Remove NaN from options for display
+                # Filter out NaN from options for display
                 machine_types_options_cleaned = [x for x in machine_types_options if pd.notna(x)]
+                # Optional: Sort machine types too if desired, but not explicitly requested
+                # machine_types_options_cleaned.sort()
+
                 selected_machine_types = st.multiselect(
                     "脱水機種別",
                     options=machine_types_options_cleaned,
@@ -296,10 +313,23 @@ def main():
         filtered_df = df.copy()
         if order_status is not None and order_status and '受注の有無' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['受注の有無'].isin(order_status)].copy() # Use .copy()
-        if selected_main_categories is not None and selected_main_categories and '業種大分類' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['業種大分類'].isin(selected_main_categories)].copy() # Use .copy()
-        if selected_sub_categories is not None and selected_sub_categories and '業種中分類' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['業種中分類'].isin(selected_sub_categories)].copy() # Use .copy()
+        # For category filters, also include rows where the category is NaN if the multiselect is empty
+        # If the multiselect has selections, only include rows matching selections (NaN excluded by isin)
+        if selected_main_categories is not None and '業種大分類' in filtered_df.columns:
+             # If selections are made, filter by selections
+             if selected_main_categories:
+                 filtered_df = filtered_df[filtered_df['業種大分類'].isin(selected_main_categories)].copy()
+             # If no selections are made (default []), do not filter by this column.
+             # Note: The original code did apply a filter if default=[], which might filter out everything.
+             # Let's stick to the behavior that if the list is empty, no filter is applied for this specific multiselect.
+             # If the user wants to see only blank/NaN, they would need to explicitly select it if it were an option.
+             # Since we removed blank/NaN from options, an empty list means "show all non-filtered-out items".
+             pass # No filtering if selected_main_categories is None or empty
+
+        if selected_sub_categories is not None and '業種中分類' in filtered_df.columns:
+             if selected_sub_categories:
+                  filtered_df = filtered_df[filtered_df['業種中分類'].isin(selected_sub_categories)].copy()
+             pass # No filtering if selected_sub_categories is None or empty
 
         # Apply machine type filter only if column exists and selections were made
         if selected_machine_types is not None and selected_machine_types and '脱水機種別' in filtered_df.columns:
@@ -316,6 +346,7 @@ def main():
             st.subheader("件数グラフ")
             # Only show chart options if the corresponding columns exist and have non-NaN values in filtered_df
             chart_options = []
+            # Use filtered_df for checking column existence and non-empty data
             if '業種大分類' in filtered_df.columns and not filtered_df['業種大分類'].dropna().empty:
                 chart_options.append("業種大分類")
             if '業種中分類' in filtered_df.columns and not filtered_df['業種中分類'].dropna().empty:
@@ -331,7 +362,7 @@ def main():
                  chart_type = st.radio(
                     "グラフの種類を選択してください:",
                     chart_options,
-                    key="summary_chart_type"
+                    key="summary_chart_type" # Added a key
                  )
                  create_summary_chart(filtered_df, chart_type)
             else:
@@ -357,7 +388,7 @@ def main():
                         value_col_main = st.selectbox("数値項目を選択してください (箱ひげ図 1)", numeric_columns, key="boxplot1_value")
                         show_outliers_main = st.checkbox("外れ値を表示 (箱ひげ図 1)", value=True, key="outliers_main")
 
-                        # --- 新しいチェックボックスを追加 ---
+                        # --- "0を表示" チェックボックス (デフォルトでチェック) ---
                         show_zeros_main = st.checkbox("0を表示 (箱ひげ図 1)", value=True, key="show_zeros_main")
                         # --- ここまで ---
 
@@ -367,12 +398,17 @@ def main():
                             if not show_zeros_main: # 如果不显示 0
                                 if value_col_main in df_for_analysis_main.columns: # 确保列存在
                                     # 过滤掉值为 0 的行，同时保留 NaN 值
+                                    # Use .loc for clearer filtering
                                     df_for_analysis_main = df_for_analysis_main.loc[(df_for_analysis_main[value_col_main] != 0) | (df_for_analysis_main[value_col_main].isna())].copy()
                                 else:
                                      st.warning(f"選択された数値項目 '{value_col_main}' がデータに存在しないため、0の除外フィルターを適用できません。")
 
                             # Pass the potentially zero-filtered data to create_boxplot
-                            create_boxplot(df_for_analysis_main, value_col_main, "業種大分類", show_outliers_main)
+                            # Ensure category column exists in the potentially filtered data
+                            if '業種大分類' in df_for_analysis_main.columns:
+                                create_boxplot(df_for_analysis_main, value_col_main, "業種大分類", show_outliers_main)
+                            else:
+                                st.warning("箱ひげ図の作成に必要な『業種大分類』列がデータに存在しません。")
                             # --- ここまで ---
 
                             st.markdown("---") # Add separator line
@@ -386,25 +422,30 @@ def main():
 
                                 if not show_zeros_main: # If not showing 0s
                                      if value_col_main in df_describe_main.columns:
-                                        df_describe_main = df_describe_main.loc[(df_describe_main[value_col_main] != 0) | (df_describe_main[value_col_main].isna())].copy()
+                                         # Filter out rows where value is 0, keep NaNs
+                                         df_describe_main = df_describe_main.loc[(df_describe_main[value_col_main] != 0) | (df_describe_main[value_col_main].isna())].copy()
                                      else:
-                                        st.warning(f"選択された数値項目 '{value_col_main}' がデータに存在しないため、要約統計量から0を除外できません。")
+                                         st.warning(f"選択された数値項目 '{value_col_main}' がデータに存在しないため、要約統計量から0を除外できません。")
 
-                                # Drop NaNs for describe() AFTER applying the zero filter
-                                df_describe_main = df_describe_main.dropna(subset=['業種大分類', value_col_main]).copy()
+                                # Drop NaNs for describe() AFTER applying the zero filter and ensure columns exist
+                                if '業種大分類' in df_describe_main.columns and value_col_main in df_describe_main.columns:
+                                     df_describe_main = df_describe_main.dropna(subset=['業種大分類', value_col_main]).copy()
 
+                                     if not df_describe_main.empty:
+                                         # Ensure the value column is numeric before describe
+                                         if pd.api.types.is_numeric_dtype(df_describe_main[value_col_main]):
+                                             # Ensure grouping column is string type for groupby
+                                             df_describe_main['業種大分類'] = df_describe_main['業種大分類'].astype(str)
+                                             grouped_stats_main = df_describe_main.groupby("業種大分類")[value_col_main].describe()
+                                             st.dataframe(grouped_stats_main)
+                                         else:
+                                            st.warning(f"選択された数値項目 '{value_col_main}' は数値型ではないため、要約統計量を作成できません。")
 
-                                if not df_describe_main.empty:
-                                    # Ensure the value column is numeric before describe
-                                    if pd.api.types.is_numeric_dtype(df_describe_main[value_col_main]):
-                                        # Ensure grouping column is string type for groupby
-                                        df_describe_main['業種大分類'] = df_describe_main['業種大分類'].astype(str)
-                                        grouped_stats_main = df_describe_main.groupby("業種大分類")[value_col_main].describe()
-                                        st.dataframe(grouped_stats_main)
-                                    else:
-                                        st.warning(f"選択された数値項目 '{value_col_main}' は数値型ではないため、要約統計量を作成できません。")
+                                     else:
+                                         st.warning("要約統計量を作成するための有効なデータがありません。")
                                 else:
-                                     st.warning("要約統計量を作成するための有効なデータがありません。")
+                                     st.warning("要約統計量を作成するための列 ('業種大分類' または選択された数値項目) が不足しています。")
+
 
                             except Exception as e:
                                 st.error(f"業種大分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
@@ -420,7 +461,7 @@ def main():
                         value_col_sub = st.selectbox("数値項目を選択してください (箱ひげ図 2)", numeric_columns, key="boxplot2_value")
                         show_outliers_sub = st.checkbox("外れ値を表示 (箱ひげ図 2)", value=True, key="outliers_sub")
 
-                        # --- 新しいチェックボックスを追加 ---
+                        # --- "0を表示" チェックボックス (デフォルトでチェック) ---
                         show_zeros_sub = st.checkbox("0を表示 (箱ひげ図 2)", value=True, key="show_zeros_sub")
                         # --- ここまで ---
 
@@ -435,7 +476,12 @@ def main():
                                      st.warning(f"選択された数値項目 '{value_col_sub}' がデータに存在しないため、0の除外フィルターを適用できません。")
 
                              # Pass the potentially zero-filtered data to create_boxplot
-                             create_boxplot(df_for_analysis_sub, value_col_sub, "業種中分類", show_outliers_sub)
+                             # Ensure category column exists in the potentially filtered data
+                             if '業種中分類' in df_for_analysis_sub.columns:
+                                 create_boxplot(df_for_analysis_sub, value_col_sub, "業種中分類", show_outliers_sub)
+                             else:
+                                 st.warning("箱ひげ図の作成に必要な『業種中分類』列がデータに存在しません。")
+
                              # --- ここまで ---
 
 
@@ -454,18 +500,19 @@ def main():
                                      else:
                                          st.warning(f"選択された数値項目 '{value_col_sub}' がデータに存在しないため、要約統計量から0を除外できません。")
 
-                                 # Drop NaNs for describe() AFTER applying the zero filter
-                                 df_describe_sub = df_describe_sub.dropna(subset=['業種中分類', value_col_sub]).copy()
+                                 # Drop NaNs for describe() AFTER applying the zero filter and ensure columns exist
+                                 if '業種中分類' in df_describe_sub.columns and value_col_sub in df_describe_sub.columns:
+                                     df_describe_sub = df_describe_sub.dropna(subset=['業種中分類', value_col_sub]).copy()
 
-                                 if not df_describe_sub.empty:
-                                     # Ensure the value column is numeric before describe
-                                     if pd.api.types.is_numeric_dtype(df_describe_sub[value_col_sub]):
-                                         # Ensure grouping column is string type for groupby
-                                         df_describe_sub['業種中分類'] = df_describe_sub['業種中分類'].astype(str)
-                                         grouped_stats_sub = df_describe_sub.groupby("業種中分類")[value_col_sub].describe()
-                                         st.dataframe(grouped_stats_sub)
-                                     else:
-                                        st.warning(f"選択された数値項目 '{value_col_sub}' は数値型ではないため、要約統計量を作成できません。")
+                                     if not df_describe_sub.empty:
+                                         # Ensure the value column is numeric before describe
+                                         if pd.api.types.is_numeric_dtype(df_describe_sub[value_col_sub]):
+                                             # Ensure grouping column is string type for groupby
+                                             df_describe_sub['業種中分類'] = df_describe_sub['業種中分類'].astype(str)
+                                             grouped_stats_sub = df_describe_sub.groupby("業種中分類")[value_col_sub].describe()
+                                             st.dataframe(grouped_stats_sub)
+                                         else:
+                                            st.warning(f"選択された数値項目 '{value_col_sub}' は数値型ではないため、要約統計量を作成できません。")
 
                                  else:
                                      st.warning("要約統計量を作成するための有効なデータがありません。")
