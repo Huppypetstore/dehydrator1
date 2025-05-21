@@ -130,15 +130,27 @@ def main():
                     default=[True, False]
                 )
             with col2:
+                # 動的に業種大分類のオプションを生成
+                if '業種大分類' in df.columns:
+                    all_main_categories = sorted(df['業種大分類'].dropna().unique().tolist())
+                else:
+                    all_main_categories = [] # またはエラー表示
+
                 selected_main_categories = st.multiselect(
                     "業種大分類",
-                    options=sorted(MAIN_CATEGORIES),
+                    options=all_main_categories,
                     default=[]
                 )
             with col3:
+                # 動的に業種中分類のオプションを生成
+                if '業種中分類' in df.columns:
+                    all_sub_categories = sorted(df['業種中分類'].dropna().unique().tolist())
+                else:
+                    all_sub_categories = [] # またはエラー表示
+
                 selected_sub_categories = st.multiselect(
                     "業種中分類",
-                    options=sorted(SUB_CATEGORIES),
+                    options=all_sub_categories,
                     default=[]
                 )
             with col4:
