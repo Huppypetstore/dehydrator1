@@ -196,10 +196,10 @@ def main():
                         df_for_analysis_main = filtered_df.copy()
                         columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
                         if value_col_main in columns_to_filter_zero_and_nan:
-                            # Filter out NaN values first
-                            df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main].notna()].copy()
-                            # Then explicitly filter out 0 values
-                            df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main] != 0].copy()
+                            # Filter out NaN values
+                            df_for_analysis_main = df_for_analysis_main.loc[df_for_analysis_main[value_col_main].notna()].copy()
+                            # Explicitly filter out 0 values using .loc
+                            df_for_analysis_main = df_for_analysis_main.loc[df_for_analysis_main[value_col_main] != 0].copy()
 
                         # Sort categories by count for boxplot
                         category_counts_main = filtered_df["業種大分類"].value_counts().reset_index()
@@ -245,10 +245,10 @@ def main():
                         df_for_analysis_sub = filtered_df.copy()
                         columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
                         if value_col_sub in columns_to_filter_zero_and_nan:
-                            # Filter out NaN values first
-                            df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub].notna()].copy()
-                            # Then explicitly filter out 0 values
-                            df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub] != 0].copy()
+                            # Filter out NaN values
+                            df_for_analysis_sub = df_for_analysis_sub.loc[df_for_analysis_sub[value_col_sub].notna()].copy()
+                            # Explicitly filter out 0 values using .loc
+                            df_for_analysis_sub = df_for_analysis_sub.loc[df_for_analysis_sub[value_col_sub] != 0].copy()
 
                         # Sort categories by count for boxplot
                         category_counts_sub = filtered_df["業種中分類"].value_counts().reset_index()
@@ -293,7 +293,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
