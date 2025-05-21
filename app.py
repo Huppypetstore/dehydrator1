@@ -33,6 +33,10 @@ def load_and_process_data(uploaded_file) -> pd.DataFrame:
     try:
         df = pd.read_excel(uploaded_file)
         
+        # Global Data Cleaning: Replace all 0 (numeric or text) with NaN across the entire dataframe
+        df = df.replace(0, pd.NA) # Replace numeric 0
+        df = df.replace('0', pd.NA) # Replace text "0"
+        
         # Data Cleaning: Convert non-numeric, empty strings, or whitespace to NaN for specific columns
         columns_to_clean = ['固形物回収率 %', '脱水ケーキ含水率 %']
         for col in columns_to_clean:
@@ -293,6 +297,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
