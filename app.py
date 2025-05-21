@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from typing import List, Dict
+# import os # Removed os import - assuming we are back to Excel only
 
 # Define constants for the categories
 MAIN_CATEGORIES = [
@@ -24,254 +25,306 @@ SUB_CATEGORIES = [
     "養鶏", "養豚", "冷凍・チルド・中食"
 ]
 
-DEWATERING_MACHINE_TYPES = [
-    "多重円板型脱水機", "多重板型スクリュープレス脱水機"
-]
+# DEWATERING_MACHINE_TYPES constant was not used in the last version, keeping it commented or removing is fine
+# DEWATERING_MACHINE_TYPES = [
+#     "多重円板型脱水機", "多重板型スクリュープレス脱水機"
+# ]
 
 def load_and_process_data(uploaded_file) -> pd.DataFrame:
     """Load and process the uploaded Excel file."""
     try:
         df = pd.read_excel(uploaded_file)
-        
-        # Data Cleaning: Convert non-numeric, empty strings, or whitespace to NaN for specific columns
+
+        # Basic cleaning as in the original code
+        # Global Data Cleaning: Replace all 0 (numeric or text) with NaN across the entire dataframe
+        df = df.replace(0, pd.NA) # Replace numeric 0
+        df = df.replace('0', pd.NA) # Replace text "0"
+
+        # Data Cleaning for specific columns (as in the original code)
         columns_to_clean = ['固形物回収率 %', '脱水ケーキ含水率 %']
         for col in columns_to_clean:
             if col in df.columns:
-                # Convert all non-numeric values (including blank strings) to NaN
+                # More robust cleaning: convert to string, replace common non-numeric representations, then convert to numeric
+                df[col] = df[col].astype(str) # Ensure it's string type
+                df[col] = df[col].str.strip() # Remove leading/trailing whitespace
+                # Replace common non-numeric indicators of missing or zero with empty string
+                df[col] = df[col].replace(['^\s*$', '.', '-', 'N/A'], '', regex=True) # Added '.' and '-' as potential indicators
+                df[col] = df[col].replace('', pd.NA) # Replace empty strings with NaN
+                # Finally, convert to numeric, coercing errors to NaN
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                # Also replace any remaining whitespace-only strings with NaN
-                df[col] = df[col].replace(r'^s*$', pd.NA, regex=True)
-        
+
         return df
     except Exception as e:
-        st.error(f"エラーが発生しました: {str(e)}")
+        st.error(f"ファイルの読み込み中にエラーが発生しました: {str(e)}")
         return None
 
-def create_boxplot(df: pd.DataFrame, value_col: str, category_col: str, show_outliers: bool = True) -> None:
-    """Create and display a boxplot for the specified value column, grouped by a specified category.
-       Optionally hide outliers."""
-    if df is not None and not df.empty:
-        points_mode = 'all' if show_outliers else False
-        fig = px.box(
-            df,
-            x=category_col,
-            y=value_col,
-            points=points_mode,
-            title=f"{category_col}ごとの{value_col}の箱ひげ図"
-        )
-        fig.update_layout(
-            xaxis_tickangle=-45,
-            height=600
-        )
-        st.plotly_chart(fig, use_container_width=True)
+def create_boxplot(df: pd.DataFrame, value_col: str) -> None:
+    """Create and display a boxplot for the specified value column, grouped by main and sub categories."""
+    # Added checks for necessary columns and empty data after filtering/deletion
+    if df is not None and not df.empty and "業種大分類" in df.columns and "業種中分類" in df.columns and value_col in df.columns:
+         # Drop rows where grouping columns or value column are NaN for plotting
+         df_plot = df.dropna(subset=["業種大分類", "業種中分類", value_col]).copy()
 
-def create_summary_chart(df: pd.DataFrame, group_by: str) -> None:
-    """Create and display a bar chart for the specified grouping (count)."""
-    if df is not None and not df.empty:
-        # Group by the primary category and then by '脱水機種別' for color splitting
-        if group_by in ["業種大分類", "業種中分類"]:
-            # Filter for specific 脱水機種別 types
-            allowed_machine_types = ["多重円板型脱水機", "多重板型スクリュープレス脱水機"]
-            # Filter the dataframe before grouping
-            df_to_chart = df[df['脱水機種別'].isin(allowed_machine_types)]
+         if df_plot.empty:
+              st.warning(f"選択されたデータまたは列 ('業種大分類', '業種中分類', '{value_col}') に有効なデータがありません。フィルター設定または削除された行を確認してください。")
+              return
 
-            # Group the filtered dataframe
-            summary = df_to_chart.groupby([group_by, '脱水機種別']).size().reset_index(name='件数')
-            # Sort by primary group and then by count for stacking order
-            summary = summary.sort_values(by=[group_by, '件数'], ascending=[True, False])
-            color_col = '脱水機種別'
-        else:
-            summary = df[group_by].value_counts().reset_index()
-            summary.columns = [group_by, '件数']
-            color_col = None # No color grouping for other chart types
-        
-        # Calculate total counts for sorting x-axis categories
-        total_counts = summary.groupby(group_by)['件数'].sum().reset_index()
-        sorted_categories = total_counts.sort_values('件数', ascending=False)[group_by].tolist()
+         # Sort categories by count for consistent plotting order
+         try:
+              # Combine main and sub category for sorting the x-axis (optional but can make it cleaner)
+              df_plot['Main_Sub'] = df_plot['業種大分類'].astype(str) + ' - ' + df_plot['業種中分類'].astype(str)
+              category_counts = df_plot['Main_Sub'].value_counts().reset_index()
+              category_counts.columns = ['Main_Sub', 'count']
+              sorted_categories = category_counts.sort_values('count', ascending=False)['Main_Sub'].tolist()
 
-        fig = px.bar(
-            summary,
-            x=group_by,
-            y='件数',
-            title=f'{group_by}別の件数',
-            labels={group_by: '', '件数': '件数'},
-            color=color_col, # Apply color grouping
-            text='件数', # Use the '件数' column for text labels
-            text_auto=True # Automatically position text labels
-        ,
-            color_discrete_sequence=px.colors.qualitative.Pastel # Use a pastel color sequence
-        ,
-            category_orders={group_by: sorted_categories} # Apply sorting to x-axis categories
-        )
-        fig.update_layout(
-            xaxis_tickangle=-45,
-            height=500
-        )
-        st.plotly_chart(fig, use_container_width=True)
+              fig = px.box(
+                  df_plot,
+                  x="Main_Sub", # Use combined category for x-axis if sorting works well
+                  y=value_col,
+                  color="業種大分類", # Color by main category
+                  points="all", # Always show points as per original request
+                  title=f"業種大分類×業種中分類ごとの{value_col}の箱ひげ図",
+                  category_orders={"Main_Sub": sorted_categories} # Apply sorting
+              )
+              fig.update_layout(
+                  xaxis_tickangle=-45,
+                  height=600
+              )
+              st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
+
+         except Exception as e:
+              st.error(f"箱ひげ図の作成中にエラーが発生しました: {str(e)}")
+              # Fallback if combined category or sorting causes issues
+              st.warning("カテゴリ結合またはソートに問題が発生しました。元のカテゴリでプロットを試みます。")
+              try:
+                   fig = px.box(
+                      df_plot,
+                      x="業種大分類", # Fallback to main category on x-axis
+                      y=value_col,
+                      color="業種中分類",
+                      points="all",
+                      title=f"業種大分類×業種中分類ごとの{value_col}の箱ひげ図",
+                      # No category order applied in fallback
+                   )
+                   fig.update_layout(
+                      xaxis_tickangle=-45,
+                      height=600
+                   )
+                   st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
+              except Exception as fallback_e:
+                   st.error(f"フォールバックの箱ひげ図作成中にエラーが発生しました: {str(fallback_e)}")
+
+
+    elif df is not None and df.empty:
+         st.warning("箱ひげ図を作成するためのデータがありません。")
+    elif df is None:
+         st.warning("データがロードされていません。")
+    else:
+         st.warning("箱ひげ図の作成に必要な列 ('業種大分類', '業種中分類', または選択された数値項目) がデータに存在しません。")
+
 
 def main():
-    st.set_page_config(page_title="引き合い情報分析 APP", layout="wide")
-    st.title("📊 引き合い情報分析 APP")
+    st.set_page_config(page_title="顧客情報分析", layout="wide")
+    st.title("顧客情報分析システム")
 
-    # ファイルアップロード
+    # Initialize session state for the DataFrame if it doesn't exist
+    if 'data' not in st.session_state:
+        st.session_state.data = None
+    if 'filtered_data' not in st.session_state:
+        st.session_state.filtered_data = None
+    if 'display_data' not in st.session_state:
+        st.session_state.display_data = None
+
+
     uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=['xlsx', 'xls'])
 
-    if uploaded_file is not None:
-        df = load_and_process_data(uploaded_file)
-        
-        if df is not None:
-            # フィルター設定
-            st.header("フィルター設定")
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
+    # Load data only when a new file is uploaded
+    if uploaded_file is not None and st.session_state.data is None:
+        st.session_state.data = load_and_process_data(uploaded_file)
+        # Initialize filtered_data and display_data with the loaded data
+        if st.session_state.data is not None:
+             st.session_state.filtered_data = st.session_state.data.copy()
+             st.session_state.display_data = st.session_state.data.copy()
+             st.success("ファイルが正常にロードされました。")
+
+
+    # Proceed only if data is loaded
+    if st.session_state.data is not None and not st.session_state.data.empty:
+
+        st.subheader("フィルター設定（初期フィルター）")
+
+        col1, col2, col3 = st.columns(3)
+
+        # Get options from the *original* loaded data for initial filters
+        # This prevents filter options changing based on previous filters/deletions
+        original_df = st.session_state.data
+        order_status_options = original_df['受注の有無'].unique().tolist() if '受注の有無' in original_df.columns else []
+        main_categories_options = original_df['業種大分類'].unique().tolist() if '業種大分類' in original_df.columns else []
+        sub_categories_options = original_df['業種中分類'].unique().tolist() if '業種中分類' in original_df.columns else []
+
+
+        with col1:
+            if '受注の有無' in original_df.columns:
+                selectable_order_status_options = [x for x in order_status_options if pd.notna(x)]
                 order_status = st.multiselect(
                     "受注の有無",
-                    options=[True, False],
-                    default=[True, False]
+                    options=[True, False], # Assuming True/False are the only relevant options
+                    default=[True, False] if any(x in [True, False] for x in selectable_order_status_options) else []
                 )
-            with col2:
+            else:
+                st.warning("列 '受注の有無' がデータに存在しません。初期フィルターは適用されません。")
+                order_status = None
+
+
+        with col2:
+            if '業種大分類' in original_df.columns:
+                main_categories_options_cleaned = [x for x in main_categories_options if pd.notna(x)]
                 selected_main_categories = st.multiselect(
                     "業種大分類",
-                    options=MAIN_CATEGORIES,
+                    options=main_categories_options_cleaned,
                     default=[]
                 )
-            with col3:
-                selected_sub_categories = st.multiselect(
-                    "業種中分類",
-                    options=SUB_CATEGORIES,
-                    default=[]
-                )
-            with col4:
-                selected_machine_types = st.multiselect(
-                    "脱水機種別",
-                    options=DEWATERING_MACHINE_TYPES,
-                    default=[]
-                )
-
-            filtered_df = df.copy()
-            if order_status:
-                filtered_df = filtered_df[filtered_df['受注の有無'].isin(order_status)]
-            if selected_main_categories:
-                filtered_df = filtered_df[filtered_df['業種大分類'].isin(selected_main_categories)]
-            if selected_sub_categories:
-                filtered_df = filtered_df[filtered_df['業種中分類'].isin(selected_sub_categories)]
-            
-            if selected_machine_types and '脱水機種別' in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df['脱水機種別'].isin(selected_machine_types)]
-
-            # 分析結果（件数）
-            st.header("分析結果")
-            st.write(f"フィルター適用後の総件数: {len(filtered_df)}")
-
-            st.subheader("件数グラフ")
-            chart_type = st.radio(
-                "グラフの種類を選択してください:",
-                ["業種大分類", "業種中分類", "受注の有無"]
-            )
-            create_summary_chart(filtered_df, chart_type)
-
-            # 数値分析（箱ひげ図と要約統計量）
-            st.header("数値分析（箱ひげ図と要約統計量）")
-            numeric_columns = filtered_df.select_dtypes(include='number').columns.tolist()
-
-            # Initialize selected value variables
-            value_col_main = None
-            value_col_sub = None
-
-            if numeric_columns:
-                # 2つの列を作成して箱ひげ図と要約統計量を並列配置
-                col_box1, col_box2 = st.columns(2)
-
-                with col_box1:
-                    # 箱ひげ図 1：業種大分類 ごと
-                    st.subheader("箱ひげ図 1：業種大分類")
-                    value_col_main = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot1_value")
-                    show_outliers_main = st.checkbox("外れ値を表示", value=True, key="outliers_main")
-                    if value_col_main:
-                        # Filter out 0 and NaN values for specific columns if selected
-                        df_for_analysis_main = filtered_df.copy()
-                        columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
-                        if value_col_main in columns_to_filter_zero_and_nan:
-                            df_for_analysis_main = df_for_analysis_main[df_for_analysis_main[value_col_main].notna() & (df_for_analysis_main[value_col_main] != 0)]
-
-                        # Sort categories by count for boxplot
-                        category_counts_main = filtered_df["業種大分類"].value_counts().reset_index()
-                        category_counts_main.columns = ["業種大分類", 'count']
-                        sorted_categories_main = category_counts_main.sort_values('count', ascending=False)["業種大分類"].tolist()
-
-                        # Create boxplot with sorted categories
-                        fig_main = px.box(
-                            df_for_analysis_main,
-                            x="業種大分類",
-                            y=value_col_main,
-                            points='all' if show_outliers_main else False,
-                            title=f"業種大分類ごとの{value_col_main}の箱ひげ図",
-                            category_orders={"業種大分類": sorted_categories_main}
-                        )
-                        fig_main.update_layout(
-                            xaxis_tickangle=-45,
-                            height=600
-                        )
-                        st.plotly_chart(fig_main, use_container_width=True, config={'scrollZoom': True})
-                        
-                        st.markdown("---") # 区切り線を追加
-                        
-                        # 要約統計量：業種大分類ごと
-                        st.subheader(f"📊 {value_col_main} の要約統計量 (業種大分類別)")
-                        try:
-                            grouped_stats_main = df_for_analysis_main.groupby("業種大分類")[value_col_main].describe()
-                            st.dataframe(grouped_stats_main)
-                        except Exception as e:
-                            st.error(f"業種大分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
-
-                with col_box2:
-                    # 箱ひげ図 2：業種中分類 ごと
-                    st.subheader("箱ひげ図 2：業種中分類")
-                    value_col_sub = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot2_value")
-                    show_outliers_sub = st.checkbox("外れ値を表示", value=True, key="outliers_sub")
-                    if value_col_sub:
-                        # Filter out 0 and NaN values for specific columns if selected
-                        df_for_analysis_sub = filtered_df.copy()
-                        columns_to_filter_zero_and_nan = ['固形物回収率 %', '脱水ケーキ含水率 %']
-                        if value_col_sub in columns_to_filter_zero_and_nan:
-                            df_for_analysis_sub = df_for_analysis_sub[df_for_analysis_sub[value_col_sub].notna() & (df_for_analysis_sub[value_col_sub] != 0)]
-
-                        # Sort categories by count for boxplot
-                        category_counts_sub = filtered_df["業種中分類"].value_counts().reset_index()
-                        category_counts_sub.columns = ["業種中分類", 'count']
-                        sorted_categories_sub = category_counts_sub.sort_values('count', ascending=False)["業種中分類"].tolist()
-
-                        # Create boxplot with sorted categories
-                        fig_sub = px.box(
-                            df_for_analysis_sub,
-                            x="業種中分類",
-                            y=value_col_sub,
-                            points='all' if show_outliers_sub else False,
-                            title=f"業種中分類ごとの{value_col_sub}の箱ひげ図",
-                            category_orders={"業種中分類": sorted_categories_sub}
-                        )
-                        fig_sub.update_layout(
-                            xaxis_tickangle=-45,
-                            height=600
-                        )
-                        st.plotly_chart(fig_sub, use_container_width=True, config={'scrollZoom': True})
-
-                        st.markdown("---") # 区切り線を追加
-                        
-                        # 要約統計量：業種中分類ごと
-                        st.subheader(f"📊 {value_col_sub} の要約統計量 (業種中分類別)")
-                        try:
-                            grouped_stats_sub = df_for_analysis_sub.groupby("業種中分類")[value_col_sub].describe()
-                            st.dataframe(grouped_stats_sub)
-                        except Exception as e:
-                            st.error(f"業種中分類ごとの要約統計量の計算中にエラーが発生しました: {str(e)}")
-
             else:
-                st.warning("箱ひげ図と要約統計量を作成できる数値項目が見つかりません。")
+                st.warning("列 '業種大分類' がデータに存在しません。初期フィルターは適用されません。")
+                selected_main_categories = None
 
-            # フィルター後のデータ
-            st.header("フィルター後のデータ")
-            st.dataframe(filtered_df)
+
+        with col3:
+            if '業種中分類' in original_df.columns:
+                 sub_categories_options_cleaned = [x for x in sub_categories_options if pd.notna(x)]
+                 selected_sub_categories = st.multiselect(
+                    "業種中分類",
+                    options=sub_categories_options_cleaned,
+                    default=[]
+                 )
+            else:
+                 st.warning("列 '業種中分類' がデータに存在しません。初期フィルターは適用されません。")
+                 selected_sub_categories = None
+
+
+        # Apply initial filter from multiselects
+        temp_filtered_df = original_df.copy()
+        if order_status is not None and order_status and '受注の有無' in temp_filtered_df.columns:
+            temp_filtered_df = temp_filtered_df[temp_filtered_df['受注の有無'].isin(order_status)]
+        if selected_main_categories is not None and selected_main_categories and '業種大分類' in temp_filtered_df.columns:
+            temp_filtered_df = temp_filtered_df[temp_filtered_df['業種大分類'].isin(selected_main_categories)]
+        if selected_sub_categories is not None and selected_sub_categories and '業種中分類' in temp_filtered_df.columns:
+            temp_filtered_df = temp_filtered_df[temp_filtered_df['業種中分類'].isin(selected_sub_categories)]
+
+        # Update filtered_data and display_data in session state based on initial filters
+        # Check if the initial filters resulted in a non-empty DataFrame before updating
+        if not temp_filtered_df.empty:
+             st.session_state.filtered_data = temp_filtered_df.copy()
+             st.session_state.display_data = temp_filtered_df.copy() # display_data starts as filtered_data
+        else:
+             st.session_state.filtered_data = pd.DataFrame(columns=original_df.columns) # Set to empty df with original columns
+             st.session_state.display_data = pd.DataFrame(columns=original_df.columns)
+             st.warning("初期フィルター条件に一致するデータがありません。")
+
+
+        st.subheader("フィルター後のデータ")
+        st.write(f"初期フィルター適用後の総件数: {len(st.session_state.filtered_data)}")
+
+
+        # --- Additional Filtering and Deletion Section ---
+        st.subheader("追加のデータ操作")
+
+        # Allow filtering the currently displayed data
+        if not st.session_state.display_data.empty:
+            cols_for_filter = st.session_state.display_data.columns.tolist()
+            filter_col = st.selectbox("フィルターする列を選択", cols_for_filter, key="filter_col")
+
+            # Determine the appropriate input widget based on column dtype
+            col_dtype = st.session_state.display_data[filter_col].dtype
+            filter_value = None
+            if pd.api.types.is_numeric_dtype(col_dtype):
+                filter_value = st.number_input(f"'{filter_col}' の値を入力", key="filter_value_numeric")
+            elif pd.api.types.is_bool_dtype(col_dtype):
+                filter_value = st.checkbox(f"'{filter_col}' の値が True の行を表示", key="filter_value_bool")
+            else: # Treat as text for other types (object, category, etc.)
+                 filter_value = st.text_input(f"'{filter_col}' の値を入力 (テキスト検索)", key="filter_value_text")
+
+
+            # Add buttons for applying filter and deleting rows
+            col_filter_buttons, col_delete_button = st.columns(2)
+
+            with col_filter_buttons:
+                 if st.button("この条件でデータ表示をフィルター"):
+                      if filter_value is not None and filter_col in st.session_state.filtered_data.columns:
+                           try:
+                                # Apply filter to filtered_data to update display_data
+                                if pd.api.types.is_numeric_dtype(st.session_state.filtered_data[filter_col].dtype):
+                                    # For numeric, strict equality or handle NaN/0 carefully
+                                     if pd.isna(filter_value): # If user wants to filter for NaN
+                                          st.session_state.display_data = st.session_state.filtered_data[st.session_state.filtered_data[filter_col].isna()].copy()
+                                     else:
+                                          st.session_state.display_data = st.session_state.filtered_data[st.session_state.filtered_data[filter_col] == filter_value].copy()
+                                else: # For other types (text, bool, etc.)
+                                     # Ensure the column is string type for filtering
+                                     col_data_str = st.session_state.filtered_data[filter_col].astype(str)
+                                     st.session_state.display_data = st.session_state.filtered_data[col_data_str.str.contains(str(filter_value), na=False)].copy() # Contains check for text
+
+
+                                if st.session_state.display_data.empty:
+                                     st.warning("指定されたフィルター条件に一致する行が見つかりませんでした。")
+                                else:
+                                     st.info(f"データ表示を '{filter_col}' == '{filter_value}' でフィルターしました。")
+
+                           except Exception as e:
+                                st.error(f"フィルター適用中にエラーが発生しました: {str(e)}")
+                      else:
+                           st.warning("フィルター条件が有効ではありません。列と値を正しく選択してください。")
+
+
+            with col_delete_button:
+                 if st.button("表示されている行を削除", help="このボタンは、上の『この条件でデータ表示をフィルター』ボタンで現在表示されている行を、初期フィルター後のデータ (分析に使用されるデータ) から完全に削除します。", type="secondary"):
+                      if not st.session_state.display_data.empty:
+                           # Get the index of the rows currently displayed
+                           indices_to_delete = st.session_state.display_data.index
+                           # Delete these rows from filtered_data
+                           st.session_state.filtered_data = st.session_state.filtered_data.drop(indices_to_delete)
+                           # Reset display_data to reflect the deletion (show remaining rows from filtered_data)
+                           st.session_state.display_data = st.session_state.filtered_data.copy()
+                           st.success(f"{len(indices_to_delete)} 行をデータから削除しました。")
+                           # Clear previous filter display message
+                           # This might require session state for messages, simpler to just update display data
+                      else:
+                           st.warning("削除する行がありません。まずフィルターを適用して行を表示してください。")
+
+        elif st.session_state.data is not None and not st.session_state.data.empty:
+             # Message when initial filter results in no data
+             st.warning("初期フィルター条件に一致するデータがないため、追加の操作はできません。")
+        # --- End of Additional Filtering and Deletion Section ---
+
+
+        # Display the data that will be used for analysis (st.session_state.filtered_data)
+        # Use st.data_editor if interactive editing/sorting is desired, otherwise st.dataframe
+        st.dataframe(st.session_state.display_data) # Show the data currently in display_data
+
+        st.write(f"分析に使用される総件数 (削除後): {len(st.session_state.filtered_data)}")
+
+
+        # --- Analysis Results (Boxplot) ---
+        st.subheader("分析結果")
+
+        st.subheader("箱ひげ図（業種大分類×業種中分類）")
+        # Use st.session_state.filtered_data for analysis
+        numeric_columns = st.session_state.filtered_data.select_dtypes(include='number').columns.tolist()
+
+        if numeric_columns:
+            # Use a unique key for the selectbox
+            value_col = st.selectbox("箱ひげ図に使う数値項目を選択してください", numeric_columns, key="boxplot_value_col")
+            # Pass st.session_state.filtered_data to the plotting function
+            create_boxplot(st.session_state.filtered_data, value_col)
+        else:
+            st.warning("分析に使用できる数値項目が見つかりません。")
+
+    # Message when no file is uploaded or loaded data is empty
+    elif uploaded_file is None:
+        st.info("分析を開始するには、Excelファイルをアップロードしてください。")
+    elif st.session_state.data is None or st.session_state.data.empty:
+         st.warning("アップロードされたファイルにデータが含まれていないか、読み込みに失敗しました。ファイル形式を確認してください。")
+
 
 if __name__ == "__main__":
     main()
