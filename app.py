@@ -213,6 +213,12 @@ def main():
             # Use the filtered dataframe to get numeric columns
             numeric_columns = filtered_df.select_dtypes(include='number').columns.tolist()
 
+            # --- Add print statements for debugging ---
+            print("Original DataFrame columns:", df.columns.tolist())
+            print("Filtered DataFrame columns:", filtered_df.columns.tolist())
+            print("Numeric columns found:", numeric_columns)
+            # --- End print statements ---
+
             # Define the preferred order of columns
             preferred_columns = ["汚泥濃度 TS%", "VTS%/TS", "脱水ケーキ含水率 %", "固形物回収率 %"]
 
