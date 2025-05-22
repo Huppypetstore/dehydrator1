@@ -213,18 +213,30 @@ def main():
             # Use the filtered dataframe to get numeric columns
             numeric_columns = filtered_df.select_dtypes(include='number').columns.tolist()
 
+            # Define the preferred order of columns
+            preferred_columns = ["汚泥濃度 TS%", "VTS%/TS", "脱水ケーキ含水率 %", "固形物回収率 %"]
+
+            # Create the ordered list for selectbox options
+            # Start with preferred columns that are present in numeric_columns
+            ordered_numeric_columns = [col for col in preferred_columns if col in numeric_columns]
+
+            # Add the remaining numeric columns that are not in the preferred list, maintaining their original relative order
+            ordered_numeric_columns.extend([col for col in numeric_columns if col not in preferred_columns])
+
+
             # Initialize selected value variables
             value_col_main = None
             value_col_sub = None
 
-            if numeric_columns:
+            if ordered_numeric_columns:
                 # 2つの列を作成して箱ひげ図と要約統計量を並列配置
                 col_box1, col_box2 = st.columns(2)
 
                 with col_box1:
                     # 箱ひげ図 1：業種大分類 ごと
                     st.subheader("箱ひげ図 1：業種大分類")
-                    value_col_main = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot1_value")
+                    # Use the ordered list for options
+                    value_col_main = st.selectbox("数値項目を選択してください", ordered_numeric_columns, key="boxplot1_value")
                     show_outliers_main = st.checkbox("外れ値を表示", value=False, key="outliers_main")
                     show_zeros_main = st.checkbox("0を表示", value=False, key="show_zeros_main")
                     # Ensure '業種大分類' column exists before creating the boxplot
@@ -281,7 +293,8 @@ def main():
                 with col_box2:
                     # 箱ひげ図 2：業種中分類 ごと
                     st.subheader("箱ひげ図 2：業種中分類")
-                    value_col_sub = st.selectbox("数値項目を選択してください", numeric_columns, key="boxplot2_value")
+                    # Use the ordered list for options
+                    value_col_sub = st.selectbox("数値項目を選択してください", ordered_numeric_columns, key="boxplot2_value")
                     show_outliers_sub = st.checkbox("外れ値を表示", value=False, key="outliers_sub")
                     show_zeros_sub = st.checkbox("0を表示", value=False, key="show_zeros_sub")
                     # Ensure '業種中分類' column exists before creating the boxplot
